@@ -13,23 +13,34 @@ Ext.define('ThroughputDataModel', {
             ]
 });
 
-
-
 Ext.define('CustomApp', {
     extend: 'Rally.app.App',
     componentCls: 'app',
     items:[
-    	{xtype: 'container', itemId: 'throughputCycleReport', id: 'throughputCycleReport', 
+    	{xtype: 'container', itemId: 'throughputCycleTimeReport', id: 'throughputCycleTimeReport', 
             items: [																					
-				{xtype: 'container', itemId: 'cycleTimeContainer', id: 'cycleTimeContainer', title: 'Cycle-Time'},
-				{xtype: 'container', itemId: 'throughputContainer', id: 'throughputContainer', title: 'Throughput'}
+				{xtype: 'container', itemId: 'throughputContainer', id: 'throughputContainer', title: 'Throughput'},
+				{xtype: 'container', itemId: 'cycleTimeContainer', id: 'cycleTimeContainer', title: 'Cycle-Time'}
 			],
 			layout:{
 		        type:'hbox',
 		        align:'stretch',
-		        padding:5
+		        padding:10
 		    }
-		}],
+		},	
+    	{xtype: 'container', itemId: 'WipLimitSLAReport', id: 'WipLimitSLAReport', 
+            items: [		
+            	{xtype: 'container', itemId: 'wipContainer', id: 'wipContainer', title: 'WIP Limit'},
+				{xtype: 'container', itemId: 'slaContainer', id: 'slaContainer', title: 'SLA Counter'}
+			],
+    		layout:{
+		        type:'hbox',
+		        align:'stretch',
+		        padding:10
+		    }
+    	}
+	],
+	
     layout:{
         type:'vbox',
         align:'stretch',
@@ -38,48 +49,42 @@ Ext.define('CustomApp', {
     
     cycleTimeCategoryNames: ["0-5 days", "6-10 days", "11-15 days", "16-20 days", "21-25 days", "26-30 days", "31+ days"],
     cycleTimeDistRange: 5,
-    
-    getSettingsFields:function()
-	{
-		return[{
-			name:"excludeWeekends",
-			xtype:"rallycheckboxfield",
-			fieldLabel:"Exclude Weekends from Lead Time"
-		}];
-	},
-
-	config:{
-		defaultSettings:{
-		    excludeWeekends:!0
-		}
-	},
 	
     launch: function() {
+    	
+    	this.activeViews = ['throughputCycleTimeReport','WipLimitSLAReport'];
+    	this._init();
+        this.currThroughputMessage = '<div>The Throughput for current period (between Start Date & End Date) is : <b> 10 </b></div>';
+	    this.prevThroughputMessage =  '<div>The Throughput for Previous period (between Start Date & End Date) is : <b> 10 </b></div>';
+	    
+	    this._determineDateRangeForThroughput();
         
-        this._init();
-        this._determineDateRangeForThroughput();
         this._createDataStoreForThroughput();
     },
     
-    _init: function() {	
+    /* Initializes the app */
+	_init: function() {	
+		var that = this;
 		//dynamicItems hold created ui items, which needs to be destroyed before re-drawing
 		if (typeof this.dynamicItems === "undefined"){
 			this.dynamicItems = {};
 		}
-				
-		if (typeof this.dynamicItems['throughputCycleReport'] === "undefined"){
-			this.dynamicItems['throughputCycleReport'] = {};
-		}
-		else {
-			var item;
-	
-			for (item in this.dynamicItems['throughputCycleReport']) {
-				this.dynamicItems['throughputCycleReport'][item].destroy();
+		
+		Ext.Array.each(this.activeViews, function(viewName){
+			if (typeof that.dynamicItems[viewName] === "undefined"){
+				that.dynamicItems[viewName] = {};
 			}
-		}	
+			else {
+				var item;
+		
+				for (item in that.dynamicItems[viewName]) {
+					that.dynamicItems[viewName][item].destroy();
+				}
+			}	
+		});
 	},
-    
-    _determineDateRangeForThroughput: function(){
+	
+	 _determineDateRangeForThroughput: function(){
         this.curr_End_Date = new Date();
         
         //Determine a date 30 days prior to current date.
@@ -102,7 +107,7 @@ Ext.define('CustomApp', {
         this.pastDateSixMonthFilter = this.past_Date_SixMonth.getFullYear() + '-' + (parseInt(this.past_Date_SixMonth.getMonth(), 10)+1) + '-' + this.past_Date_SixMonth.getDate();
     }, 
     
-    _createDataStoreForThroughput: function(){
+     _createDataStoreForThroughput: function(){
         //Determine the data filter for store.
         this.filter = Ext.create('Rally.data.QueryFilter', {
 			property: 'AcceptedDate',
@@ -153,19 +158,18 @@ Ext.define('CustomApp', {
 	        sorters: this.sorterConfig,
 	        listeners: {
 	            load: function(store, data, success){
-	                this.currUserStoriesColl = [];
+	            	this.currUserStoriesColl = [];
 	                this.prevUserStoriesColl = [];
 	                this.pastRangeUserStoriesColl = [];
 	                var that = this;
 	               
 	                Ext.Array.each(data, function(userStory) {
 	                    if(userStory && userStory.get('AcceptedDate')){
-	                        if(userStory.get('AcceptedDate') >= that.curr_Start_Date){
+	                    	if(userStory.get('AcceptedDate') >= that.curr_Start_Date){
 	                            that.currUserStoriesColl.push(that._createThroghputData(userStory));
 	                        }if(userStory.get('AcceptedDate') < that.curr_Start_Date && userStory.get('AcceptedDate') >= that.prev_Start_Date){
 	                            that.prevUserStoriesColl.push(that._createThroghputData(userStory));
 	                        }
-	                        
 	                        that.pastRangeUserStoriesColl.push(that._createThroghputData(userStory));
 	                    }
 	                });
@@ -178,7 +182,6 @@ Ext.define('CustomApp', {
 	},
 	
 	_createThroghputData: function(rallyObject){
-	    
 	    var cycleTime = 0;
 	    var cycleTimeCat = "N/A";
 	    //Determine the cycle time for each object.
@@ -221,24 +224,20 @@ Ext.define('CustomApp', {
                 load: function(store, data, success){
                     Ext.Array.each(data, function(defect){
                         if(defect && defect.get('AcceptedDate')){
-                            if(defect.get('AcceptedDate') >= that.curr_Start_Date){
+                        	if(defect.get('AcceptedDate') >= that.curr_Start_Date){
                             	that._insertRecordInOrder(that.currUserStoriesColl, that._createThroghputData(defect));
                             }if(defect.get('AcceptedDate') < that.curr_Start_Date && defect.get('AcceptedDate') >= that.prev_Start_Date){
                                 that._insertRecordInOrder(that.prevUserStoriesColl, that._createThroghputData(defect));
                             }
-                            
                             that._insertRecordInOrder(that.pastRangeUserStoriesColl, that._createThroghputData(defect));
                         }
                            
                     });
                     
-                    console.log('spite out Current US coll with defects: ', this.currUserStoriesColl);
-	                console.log('spite out previous US data coll with defects: ', this.prevUserStoriesColl);
-	                
-	               this.currThroughputValue = this.currUserStoriesColl.length;
+                   this.currThroughputValue = this.currUserStoriesColl.length;
 	               this.prevThroughputValue = this.prevUserStoriesColl.length;
 	                
-	                this.currThroughputDataStore = Ext.create('Rally.data.custom.Store', {
+	               this.currThroughputDataStore = Ext.create('Rally.data.custom.Store', {
                         data: this.currUserStoriesColl,
                         pageSize: 100
                     });
@@ -254,7 +253,7 @@ Ext.define('CustomApp', {
                         pageSize: 100
                     });
                     
-                    this._processStoreData();
+                    this._createThroghputMessagePanel();
                 },
                 scope: this
             }
@@ -281,264 +280,33 @@ Ext.define('CustomApp', {
 			dataColl.push(record);
 		}
 	},
-	
-	_processStoreData:  function() {
-	    var currThroghtputGridTitle = 'List all User Stories & defects for Current period (Between ' + this.currStartRallyDateFilter + ' & ' + this.currEndRallyDateFilter + ')';
-	    var currThroughputDataGrid = this._createThroughputDataGrid(currThroghtputGridTitle, this.currThroughputDataStore);
+    
+    _createThroghputMessagePanel: function(){
+    	
+    	this._configureCycleTimeMetricsContainer('panel1', 'CycleTime', 'cycleTimeContainer', 'throughputCycleTimeReport', true);
+    	
+	    this._configureThroughputMetricsContainer('panel2', 'Throughput', 'throughputContainer', 'throughputCycleTimeReport', true);
 	    
-	    var prevThroghtputGridTitle = 'List all User Stories & defects for Previous period: (Between ' + this.prevStartRallyDateFilter + ' & ' + this.prevEndRallyDateFilter + ')';
-	    var prevThroughputDataGrid = this._createThroughputDataGrid(prevThroghtputGridTitle, this.prevThroughputDataStore);
-	    
-	    var pastRangeThroghtputGridTitle = 'List all User Stories & defects for last 6 Months: (Between ' + this.pastDateSixMonthFilter + ' & ' + this.currEndRallyDateFilter + ')';
-	    var pastRangeThroughputDataGrid = this._createThroughputDataGrid(pastRangeThroghtputGridTitle, this.pastRangeThroughputDataStore);
-	    
-	    var currThroughputMessage = '<div>The Throughput for current period (between ' + this.currStartRallyDateFilter +' & '+ this.currEndRallyDateFilter +') is : <b>' + this.currThroughputValue + '</b></div>';
-	    var prevThroughputMessage = '<div>The Throughput for previous period (between ' + this.prevStartRallyDateFilter +' & '+ this.prevEndRallyDateFilter +') is : <b>' + this.prevThroughputValue + '</b></div>';
-	    
-	    this._createThroghputMessagePanel(currThroughputMessage, prevThroughputMessage);
-	    this._processThroughputDataForGraph();
-	    this._createThroghputGridPanel(currThroughputDataGrid, prevThroughputDataGrid, pastRangeThroughputDataGrid);
-	},
-	
-	_processThroughputDataForGraph: function(){
-	    var that = this;
-		this.groupedSeries = [];
-		
-		//initialize the groupseries
-	    Ext.Array.each(that.cycleTimeCategoryNames, function(catName) {
-	        that.groupedSeries.push({name: catName, data:[], stack: 'qSizes'});
-	    });
-	    
-	    that.groupedSeries.push({name: 'N/A', data: [], stack: 'qSizes'});
-	    
-	    this.chartData = {
-			totalCount: 0,
-			months: {},
-			monthCount: 0,
-			categories: []
-		};	
-		    
-		console.log('Spite out the Items: ', this.pastRangeUserStoriesColl);
-		Ext.Array.each(this.pastRangeUserStoriesColl, function(record) {
-		    that._buildChartData(record);
-		});
-		
-		console.log('chartdata post configuration: ', this.chartData);
-		console.log('spite out groupedSeries: ', this.groupedSeries);
-		
-		this._initAndDrawCharts(this.chartData);
-	},
-	
-	_buildChartData: function(record){
-	    var chartData = this.chartData;
-	    var recAcceptedDate = record.get("AcceptedDate");
-	    var recCycleTimeCat = record.get("CycleTimeCategory");
-	    var recMonthNameCat = Ext.Date.getShortMonthName(recAcceptedDate.getMonth());
-	    
-	    console.log("spite out accepted Month Number: ", recAcceptedDate.getMonth());
-	    
-	    if(typeof chartData.months[recMonthNameCat] === "undefined"){
-	        chartData.months[recMonthNameCat] = {count: 0, monthNum: 0, cycletimes: {}, userStories: []};
-	        chartData.categories.push(recMonthNameCat);
-	        
-	        for(var i=0; i<this.groupedSeries.length; ++i){
-	            this.groupedSeries[i].data.push(0); //add 0 for each month
-	        }
-	        
-	        chartData.monthCount++;
-	    }
-	    
-	    chartData.months[recMonthNameCat].userStories.push(record);
-	    if(typeof chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat] === 'undefined'){
-	        chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat] =0;
-	    }
-	    
-	    chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat]++;
-	    chartData.months[recMonthNameCat].count++;
-	    chartData.totalCount++;
-	  
-	    for(var s=0; s<this.groupedSeries.length; ++s){
-	        if(recCycleTimeCat === this.groupedSeries[s].name){
-	            this.groupedSeries[s].data[(chartData.monthCount -1)] = chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat];
-	        }
-	    }
-	   
-	   this.chartData = chartData;
-	},
-	
-	//pre init for the charts 
-	_initAndDrawCharts: function(inputData) {												
-		if (inputData.totalCount === 0) {
-			return;
-		}						
-					
-		var throughput = [], i, qCount = 0, currTotalCount = 0, avgTotals = [], monthAVGs = [];
-						
-		for (i in inputData.months) {			
-			throughput.push(inputData.months[i].count);
-			currTotalCount += inputData.months[i].count;
-			qCount++;
-					
-			avgTotals.push(Math.round(currTotalCount / qCount, 2));
-		}
-					
-		for (i = 0; i < inputData.monthCount; ++i) {
-			monthAVGs.push(Math.round(inputData.totalCount / inputData.monthCount, 2));
-		}
-	
-		//Finalize series
-		this.groupedSeries.unshift({name: 'Throughput', data: throughput});
-		this.groupedSeries.push({type: 'spline',name: 'Moving Average', data: avgTotals, color: 'blue', marker: {lineWidth: 1, fillColor: 'red'}});				
-		this.groupedSeries.push({type: 'spline',name: 'Average / Month', data: monthAVGs, color: 'purple', marker: {lineWidth: 1, fillColor: 'red'}});
-		this.groupedSeries.push({name: 'Total UserStories: ' + inputData.totalCount, color: '#fff', stack:'blank'});
-				
-		this._drawHorizontalBarChart(inputData.categories, this.groupedSeries);			
-	},
-	
-	// Configures and displays a horizontal bar chart
-	_drawHorizontalBarChart: function(categories, data) {	
-		var conf = {
-			id: 'verticalBars',
-			targetContainer: '#defaultChartContainer',
-			series: data,	
-			chartType: 'column',
-			chartTitle: 'Throughput by Months',
-			xAxisCategories: categories,
-			xAxisTitle: 'Months',
-			yAxisTitle: 'Count'												
-		};															
-		
-		this._drawBarChart(conf);
-	},								
-	
-	//Draws and displays the bar chart 
-	_drawBarChart: function (conf) {					
-		var throughputChart = Ext.create('Rally.ui.chart.Chart',{
-			id: conf.id,
-			height: 400,
-			chartData: {series: conf.series},							
-			chartConfig: {														
-				plotOptions: {
-					column: {
-						stacking: 'normal', 
-						cursor: 'pointer',
-						point: {
-							events: {
-								click: function() {															
-									//Need to implement
-								}
-							}
-						}										
-					}									
-				},
-				chart: {plotBackgroundColor: null, plotBorderWidth: null, plotShadow: false, type: conf.chartType},								
-				legend: {align: 'right', verticalAlign: 'top', x: 0, y: 100,layout: 'vertical'},
-				title: {text: conf.chartTitle},
-				tooltip: {
-					formatter: function() {
-						return '<b>'+ this.series.name + ' | ' + this.x + '</b><br/>'+
-							'<b>'+ this.y + '</b> User Stories<br/><i>(Click to view User Stories)</i>';
-					}
-				},				
-				yAxis: [{title: {text: conf.yAxisTitle}}],
-				xAxis: [{
-					title: {text: conf.xAxisTitle},
-					categories: conf.xAxisCategories
-				}]
-			}
-		});
-		
-		if(this.throughtputGraphContainer){
-			this.throughtputGraphContainer.removeAll(true);
-			this.throughtputGraphContainer.add(throughputChart);
-		}
-		else{
-				this.throughtputGraphContainer = Ext.create('Ext.container.Container', {
-			    itemId: 'defaultChartContainer', 
-			    id: 'defaultChartContainer',
-	            layout: {
-	                type: 'vbox',
-	                align: 'stretch',
-	                padding: 10
-	            },
-	            renderTo: Ext.getBody(),
-	            border: 1,
-	            style: {borderColor:'#000000', borderStyle:'solid', borderWidth:'1px'},
-	            items: [throughputChart]
-	        });
-	        
-	        this.add(this.throughtputGraphContainer);
-		}
-	},				
-	
-	_createThroghputMessagePanel: function(currThroughputMessage, prevThroughputMessage){
-         var throughtputContainer = Ext.create('Ext.container.Container', {
-            layout: {
-                type: 'vbox',
-                align: 'stretch',
-                padding: 5
-            },
-            renderTo: Ext.getBody(),
-            border: 1,
-            style: {borderColor:'#000000', borderStyle:'solid', borderWidth:'1px'},
-            items: [{
-                xtype: 'label',
-                html: currThroughputMessage
-            },
-            {
-                xtype: 'label',
-                html: prevThroughputMessage
-            }]
-        });
+     //   this.currWipLimitMessage = '<div>Work In Progress To be implemented</div>';
+	    // this.preWipLimitMessage = '<div>The Avg. CycleTime for previous period (between ' + this.prevStartRallyDateFilter +' & '+ this.prevEndRallyDateFilter +') is : <b> TBI </b></div>';
+     //   var wipLimitContainer = this._createMetricsContainer('wipLimit', this.currThroughputMessage, this.prevThroughputMessage);
+     //   var pastRangeWipLimitGridTitle = 'View Wip Limit Data';
+	    // var pastRangeWipLimitDataGrid = this._createThroughputDataGrid(pastRangeWipLimitGridTitle, this.pastRangeThroughputDataStore, 'wipLimitGrid');
+     //   this._configureMetricsContainer('panel3', 'WIP Limit', wipLimitContainer, 'wipContainer', 'WipLimitSLAReport', pastRangeWipLimitDataGrid, false);
         
-        //create the panel for displaying computed Throughput.
-        if(this.infoPanel){
-            this.infoPanel.removeAll(true);
-            this.infoPanel.add(throughtputContainer);
-        }
-        else{
-            this.infoPanel=Ext.create('Ext.form.Panel', {
-            	 title: 'Throughput',
-                renderTo: Ext.getBody(),
-                layout: {
-                    type: 'vbox',
-                    align: 'stretch',
-                    padding: 10
-                },
-                items: [throughtputContainer]
-            });
-            
-            this.add(this.infoPanel);
-        }
+     //   this.currCycleTimeMessage = '<div>The Avg. CycleTime for current period (between ' + this.currStartRallyDateFilter +' & '+ this.currEndRallyDateFilter +') is : <b> TBI </b></div>';
+	    // this.prevCycleTimeMessage = '<div>The Avg. CycleTime for previous period (between ' + this.prevStartRallyDateFilter +' & '+ this.prevEndRallyDateFilter +') is : <b> TBI </b></div>';
+     //   var slaLimitContainer = this._createMetricsContainer('slaLimit', this.currThroughputMessage, this.prevThroughputMessage);
+     //   var pastRangeSLALimitGridTitle = 'View SLA Limit Data';
+	    // var pastRangeSLALimitDataGrid = this._createThroughputDataGrid(pastRangeSLALimitGridTitle, this.pastRangeThroughputDataStore, 'slaLimitGrid');
+     //   this._configureMetricsContainer('panel4', 'SLA Limit', slaLimitContainer, 'slaContainer', 'WipLimitSLAReport', pastRangeSLALimitDataGrid, false);
 	},
 	
-	_createThroghputGridPanel: function(currThroughputDataGrid, prevThroughputDataGrid, pastRangeThroughputDataGrid){
-	    //create the grid panel to display the grid.
-        if(this.gridPanel){
-            this.gridPanel.removeAll(true);
-            this.gridPanel.add(currThroughputDataGrid);
-            this.gridPanel.add(prevThroughputDataGrid);
-            this.gridPanel.add(pastRangeThroughputDataGrid);
-        }
-        else{
-            
-            this.gridPanel=Ext.create('Ext.form.Panel', {
-                renderTo: Ext.getBody(),
-                title: 'View Details: ',
-                layout: {
-                    type: 'vbox',
-                    align: 'stretch',
-                    padding: 10
-                },
-                items: [currThroughputDataGrid, prevThroughputDataGrid, pastRangeThroughputDataGrid]
-            });
-            
-            this.add(this.gridPanel);
-        }
-	},
-	
-	_createThroughputDataGrid: function(title, dataStore){
+	_createThroughputDataGrid: function(title, dataStore, gridId){
+		console.log('Data Grid creation................');
+		
 	    var grid = Ext.create('Rally.ui.grid.Grid', {
+	    	id: gridId,
 	        title: title,
             store: dataStore,
             bodyBorder: true,
@@ -587,5 +355,536 @@ Ext.define('CustomApp', {
         });
         
         return grid;
-	}
+	},
+	
+	_createMetricsContainer: function(containerId, currThroughputMessage, prevThroughputMessage){
+		console.log('creating metrics container.......');
+		
+		var myContainer = Ext.create('Ext.container.Container', {
+         	id: containerId,
+            layout: {
+                type: 'vbox',
+                align: 'stretch',
+                padding: 15
+            },
+            renderTo: Ext.getBody(),
+            border: 1,
+            style: {borderColor:'#000000', borderStyle:'solid', borderWidth:'1px'},
+            items: [{
+                xtype: 'label',
+                html: currThroughputMessage
+            },
+            {
+                xtype: 'label',
+                html: prevThroughputMessage
+            }]
+        });
+        
+        return myContainer;
+	},
+	
+	_configureMetricsContainer: function(panelId, titleName, throughtputContainer, containerId, reportId, pastRangeDataGrid, hasGraph){
+		console.log('start configuring the metrics container.......... for ' + containerId);
+		var widthValue = hasGraph? 850 : 600;
+		
+		if (typeof this.dynamicItems[reportId][panelId] !== 'undefined') {
+			this.dynamicItems[reportId][panelId].destroy();
+		}
+		
+		console.log('creating info panel to load message container and grid. for ' + containerId);
+		
+		var infoPanel=Ext.create('Ext.form.Panel', {
+        	id: panelId,
+        	title: titleName,
+            renderTo: Ext.getBody(),
+            width: widthValue,
+            height: 300,
+            layout: {
+                type: 'vbox',
+                align: 'stretch',
+                padding: 15
+            },
+            items: [throughtputContainer, pastRangeDataGrid]
+        });
+        
+        this.dynamicItems[reportId][panelId] = Ext.getCmp(containerId).add(infoPanel);
+	},
+	
+	_configureCycleTimeMetricsContainer: function(panelId, titleName, containerId, reportId, hasGraph){
+		//1. Create the message panel container for showing the cumulative data.
+		this.currCycleTimeMessage = '<div>The Avg. CycleTime for current period (between ' + this.currStartRallyDateFilter +' & '+ this.currEndRallyDateFilter +') is : <b> TBI </b></div>';
+	    this.prevCycleTimeMessage = '<div>The Avg. CycleTime for previous period (between ' + this.prevStartRallyDateFilter +' & '+ this.prevEndRallyDateFilter +') is : <b> TBI </b></div>';
+		var cycleTimeContainer = this._createMetricsContainer('Cycle Time', this.currCycleTimeMessage, this.prevCycleTimeMessage);
+		
+		
+		//2. Create the throughput graph.
+		this._processCycleTimeDataForGraph();
+		var cycleTimeGraphContainer = this.cycleTimePieOrBarGraphChart;
+		
+		//3. cretae the throuput data grid.
+		// var pastRangeThroghtputGridTitle = 'View Throughput Data';
+	 	// var pastRangeThroughputDataGrid = this._createThroughputDataGrid(pastRangeThroghtputGridTitle, this.pastRangeThroughputDataStore, 'throughputGrid');
+		
+		//4. cretae the infopanel to add all the above components.
+		var widthValue = 600;
+		
+		if (typeof this.dynamicItems[reportId][panelId] !== 'undefined') {
+			this.dynamicItems[reportId][panelId].destroy();
+		}
+		
+		var infoPanel=Ext.create('Ext.form.Panel', {
+        	id: panelId,
+        	title: titleName,
+            renderTo: Ext.getBody(),
+            width: widthValue,
+            height: 550,
+            layout: {
+                type: 'vbox',
+                align: 'stretch',
+                padding: 15
+            },
+            items: [cycleTimeContainer, cycleTimeGraphContainer]
+        });
+		
+		//5. add the nfopanel to the appropriate app container.
+        this.dynamicItems[reportId][panelId] = Ext.getCmp(containerId).add(infoPanel);
+	},
+	
+	_processCycleTimeDataForGraph: function(){
+		var that = this;
+		
+	   this.pieData = {
+	   	totalCount: 0, 
+	   	months: {},
+	   	monthCount: 0,
+	   	categories: []
+	   };
+		
+		Ext.Array.each(this.pastRangeUserStoriesColl, function(record) {
+			that._buildCycleTimeChartData(record);
+		});
+		
+		this._initAndDrawCycleTimeCharts(this.pieData);
+	},
+	
+	_buildCycleTimeChartData: function(record){
+		var pieData = this.pieData;
+	    var recAcceptedDate = record.get("AcceptedDate");
+	    var recCycleTime = record.get("CycleTime");
+	    var recMonthNameCat = Ext.Date.getShortMonthName(recAcceptedDate.getMonth());
+	    
+	    if(typeof pieData.months[recMonthNameCat] === "undefined"){
+	        pieData.months[recMonthNameCat] = {count: 0, avgCycleTime: 0, totalCycleTime: 0, cycletimes: []};
+	        pieData.categories.push(recMonthNameCat);
+	        
+	        pieData.monthCount++;
+	    }
+	    
+	    pieData.months[recMonthNameCat].cycletimes.push(recCycleTime);
+	    pieData.months[recMonthNameCat].count++;
+	    pieData.months[recMonthNameCat].totalCycleTime = pieData.months[recMonthNameCat].totalCycleTime + recCycleTime;
+	    pieData.months[recMonthNameCat].avgCycleTime = Math.ceil(pieData.months[recMonthNameCat].totalCycleTime/ pieData.months[recMonthNameCat].count);
+	    pieData.totalCount++;
+	   
+	   this.pieData = pieData;
+	},
+
+	_initAndDrawCycleTimeCharts: function(pieData) {				
+		var cycleTimeData = [], sizeData = [], categories = [];
+					
+		if (pieData.totalCount === 0) {
+			return;
+		}
+		
+		for (month in pieData.months){
+			cycleTimeData.push([month, pieData.months[month].avgCycleTime]);
+			sizeData.push([month, pieData.months[month].count]);
+			categories.push(month);
+		}
+		
+		var cycleTimeHorBarGraph = this._drawCycleTimeHorizontalBarChart(categories, cycleTimeData);
+		this._createCycleTimeBarGraphContainer(cycleTimeHorBarGraph);
+		
+		// var cycleTimePie = this._drawPie('cycleTimePie', 'Cycle Time', 'Monthwise Avg. Cycle Time', cycleTimeData, pieData);
+		// var bySizePie = this._drawPie('bySizePie', 'Count', 'Monthwise Count', sizeData, pieData);	
+		// this._createCycleTimePieContainer(cycleTimePie, bySizePie);
+	},
+	
+	_createCycleTimeBarGraphContainer: function(barGraph){
+		
+		this.cycleTimePieOrBarGraphChart = Ext.create('Ext.container.Container', {
+			    itemId: 'defaultPieChartContainer', 
+			    id: 'defaultPieChartContainer',
+	            layout: {
+	                type: 'hbox',
+	                align: 'stretch',
+	                padding: 10
+	            },
+	            renderTo: Ext.getBody(),
+	            border: 1,
+	            style: {borderColor:'#000000', borderStyle:'solid', borderWidth:'1px'},
+	            items: [barGraph]
+	        });
+	},
+	
+	//Note: Need to refactor to re-use the same methord for Pie or Bar graph.
+	_createCycleTimePieContainer: function(cycleTimePie, bySizePie){
+		
+		this.cycleTimePieOrBarGraphChart = Ext.create('Ext.container.Container', {
+			    itemId: 'defaultPieChartContainer', 
+			    id: 'defaultPieChartContainer',
+	            layout: {
+	                type: 'hbox',
+	                align: 'stretch',
+	                padding: 10
+	            },
+	            renderTo: Ext.getBody(),
+	            border: 1,
+	            style: {borderColor:'#000000', borderStyle:'solid', borderWidth:'1px'},
+	            items: [cycleTimePie, bySizePie]
+	        });
+	},
+	
+	/* Configures and displays a horizontal bar chart */
+	_drawCycleTimeHorizontalBarChart: function(categories, leadTimeData) {	
+		var conf = {
+			id: 'horizontalBars',
+			series: [{name: 'Cycle Time', data: leadTimeData}],	
+			chartType: 'bar',
+			chartTitle: 'UserStory Cycle Time',
+			xAxisCategories: categories,
+			xAxisTitle: 'Months',
+			yAxisTitle: 'Days',
+			_formatLabelsAppendix: ' days',
+			plotOptions: {
+                bar: {
+                    dataLabels: {
+                        enabled: this.getSetting('showDataLabels')
+                    }
+                }
+            }
+		};										
+		
+		return this._drawCycleTimeBarChart(conf);
+	},
+	
+	/* Draws and displays the bar chart */
+	_drawCycleTimeBarChart: function (conf) {					
+		
+		var chart = {
+			xtype: 'rallychart',
+			id: conf.id,
+			height: 400,
+			width: 550,
+			chartData: {
+				series: conf.series								
+			},
+			chartColors: ['#FF3333', '#00CC00'],	
+			chartConfig: {														
+				chart: {
+					plotBackgroundColor: null,
+					plotBorderWidth: null,
+					plotShadow: false,
+					type: conf.chartType																
+				},								
+				legend: {									
+					align: 'right',
+					verticalAlign: 'top',
+					x: 0,
+					y: 100,									
+					layout: 'vertical'
+				},
+				title: {
+					text: conf.chartTitle
+				},
+				tooltip: {
+					_formatLabels: function() {
+						return '<b>'+ this.series.name +'</b><br/>'+
+						this.x +': '+ this.y + conf._formatLabelsAppendix;
+					}
+				},				
+				yAxis: [{
+					title: {text: conf.yAxisTitle}
+				}],
+				xAxis: [{
+					title: {text: conf.xAxisTitle},
+					categories: conf.xAxisCategories
+				}],
+				plotOptions: conf.plotOptions
+			}
+		};
+		
+		return chart;	
+	},
+	
+	/* Configures and displays a pie chart*/
+	_drawPie: function (id, name, text, data, extraData) {	
+		
+		var chart = {
+			xtype: 'rallychart',
+			id: id,
+			height: 400,
+			width: 400,	
+			style: {float: 'left'},
+			chartData: {
+				series: [{
+					type: 'pie',
+					name: name,
+					data: data
+				}]
+			},
+			chartConfig: {							
+				chart: {
+					plotBackgroundColor: null,
+					plotBorderWidth: null,
+					plotShadow: false,
+					type: 'pie'
+				},
+				xAxis: {},//must specify empty x-axis due to bug
+				title: {
+					text: text
+				},
+				tooltip: {
+					pointFormat: '{series.name}: <b>{point.y}</b>',															
+					percentageDecimals: 1,
+					_formatLabels: function() {															
+						return _formatLabels(id, this, extraData);																			
+					}
+				},
+				plotOptions: {
+					pie: {
+						allowPointSelect: true,
+						cursor: 'pointer',
+						dataLabels: {
+							enabled: true,
+							color: '#000000',
+							connectorColor: '#000000',									
+							_formatLabels: function() {											
+								return Rally.getApp()._formatLabels(id, this, extraData);																						
+							}
+						}
+					}
+				}
+			}
+		};
+					
+		return chart;																		
+	},
+	
+	/* formats lables for charts */
+	_formatLabels: function(id, that, extraData) {
+		switch (id) {
+			case 'cycleTimePie':																										
+				return '<b>' + that.point.name +'</b><br/>AVG Cycle Time: '+ that.y;
+			case 'bySizePie' :
+				return '<b>'+ that.point.name +'</b><br/>Count: '+ that.y; 
+		}				
+	},
+	
+	_configureThroughputMetricsContainer: function(panelId, titleName, containerId, reportId, hasGraph){
+		
+		//1. Create the message panel container for showing the cumulative data.
+		this.currThroughputMessage = '<div>The Throughput for current period (between ' + this.currStartRallyDateFilter +' & '+ this.currEndRallyDateFilter +') is : <b>' + this.currThroughputValue + '</b></div>';
+	    this.prevThroughputMessage = '<div>The Throughput for previous period (between ' + this.prevStartRallyDateFilter +' & '+ this.prevEndRallyDateFilter +') is : <b>' + this.prevThroughputValue + '</b></div>';
+		var throughtputContainer = this._createMetricsContainer('throughput', this.currThroughputMessage, this.prevThroughputMessage);
+		
+		
+		//2. Create the throughput graph.
+		this._processThroughputDataForGraph();
+		var throughtputGraphContainer = this._createThroughputGraphContainer(this.throughputChart);
+		
+		//3. cretae the throuput data grid.
+		var pastRangeThroghtputGridTitle = 'View Throughput Data';
+	    var pastRangeThroughputDataGrid = this._createThroughputDataGrid(pastRangeThroghtputGridTitle, this.pastRangeThroughputDataStore, 'throughputGrid');
+		
+		//4. cretae the infopanel to add all the above components.
+		var widthValue = hasGraph? 850 : 600;
+		
+		if (typeof this.dynamicItems[reportId][panelId] !== 'undefined') {
+			this.dynamicItems[reportId][panelId].destroy();
+		}
+		
+		var infoPanel=Ext.create('Ext.form.Panel', {
+        	id: panelId,
+        	title: titleName,
+            renderTo: Ext.getBody(),
+            width: widthValue,
+            height: 550,
+            layout: {
+                type: 'vbox',
+                align: 'stretch',
+                padding: 15
+            },
+            items: [throughtputContainer, throughtputGraphContainer]
+        });
+		
+		//5. add the nfopanel to the appropriate app container.
+        this.dynamicItems[reportId][panelId] = Ext.getCmp(containerId).add(infoPanel);
+	},
+	
+	_createThroughputGraphContainer: function(throughputChart){
+		
+		var graphContainer = Ext.create('Ext.container.Container', {
+			    itemId: 'defaultChartContainer', 
+			    id: 'defaultChartContainer',
+	            layout: {
+	                type: 'vbox',
+	                align: 'stretch',
+	                padding: 10
+	            },
+	            renderTo: Ext.getBody(),
+	            border: 1,
+	            style: {borderColor:'#000000', borderStyle:'solid', borderWidth:'1px'},
+	            items: [throughputChart]
+	        });
+	     
+	    return graphContainer;
+	},
+	
+	_processThroughputDataForGraph: function(){
+	    var that = this;
+		this.groupedSeries = [];
+		
+		//initialize the groupseries
+	    Ext.Array.each(that.cycleTimeCategoryNames, function(catName) {
+	        that.groupedSeries.push({name: catName, data:[], stack: 'qSizes'});
+	    });
+	    
+	    that.groupedSeries.push({name: 'N/A', data: [], stack: 'qSizes'});
+	    
+	    this.chartData = {
+			totalCount: 0,
+			months: {},
+			monthCount: 0,
+			categories: []
+		};	
+		
+		    
+		Ext.Array.each(this.pastRangeUserStoriesColl, function(record) {
+		    that._buildThroughputChartData(record);
+		});
+		
+		this._initAndDrawThroughputCharts(this.chartData);
+	},
+	
+	_buildThroughputChartData: function(record){
+	    var chartData = this.chartData;
+	    var recAcceptedDate = record.get("AcceptedDate");
+	    var recCycleTimeCat = record.get("CycleTimeCategory");
+	    var recMonthNameCat = Ext.Date.getShortMonthName(recAcceptedDate.getMonth());
+	    
+	    console.log("spite out accepted Month Number: ", recAcceptedDate.getMonth());
+	    
+	    if(typeof chartData.months[recMonthNameCat] === "undefined"){
+	        chartData.months[recMonthNameCat] = {count: 0, monthNum: 0, cycletimes: {}, userStories: []};
+	        chartData.categories.push(recMonthNameCat);
+	        
+	        for(var i=0; i<this.groupedSeries.length; ++i){
+	            this.groupedSeries[i].data.push(0); //add 0 for each month
+	        }
+	        
+	        chartData.monthCount++;
+	    }
+	    
+	    chartData.months[recMonthNameCat].userStories.push(record);
+	    if(typeof chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat] === 'undefined'){
+	        chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat] =0;
+	    }
+	    
+	    chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat]++;
+	    chartData.months[recMonthNameCat].count++;
+	    chartData.totalCount++;
+	  
+	    for(var s=0; s<this.groupedSeries.length; ++s){
+	        if(recCycleTimeCat === this.groupedSeries[s].name){
+	            this.groupedSeries[s].data[(chartData.monthCount -1)] = chartData.months[recMonthNameCat].cycletimes[recCycleTimeCat];
+	        }
+	    }
+	   
+	   this.chartData = chartData;
+	},
+	
+	//pre init for the charts 
+	_initAndDrawThroughputCharts: function(inputData) {												
+		if (inputData.totalCount === 0) {
+			return;
+		}						
+					
+		var throughput = [], i, qCount = 0, currTotalCount = 0, avgTotals = [], monthAVGs = [];
+						
+		for (i in inputData.months) {			
+			throughput.push(inputData.months[i].count);
+			currTotalCount += inputData.months[i].count;
+			qCount++;
+					
+			avgTotals.push(Math.round(currTotalCount / qCount, 2));
+		}
+					
+		for (i = 0; i < inputData.monthCount; ++i) {
+			monthAVGs.push(Math.round(inputData.totalCount / inputData.monthCount, 2));
+		}
+	
+		//Finalize series
+		this.groupedSeries.unshift({name: 'Throughput', data: throughput});
+		this.groupedSeries.push({type: 'spline',name: 'Moving Average', data: avgTotals, color: 'blue', marker: {lineWidth: 1, fillColor: 'red'}});				
+		this.groupedSeries.push({type: 'spline',name: 'Average / Month', data: monthAVGs, color: 'purple', marker: {lineWidth: 1, fillColor: 'red'}});
+		this.groupedSeries.push({name: 'Total UserStories: ' + inputData.totalCount, color: '#fff', stack:'blank'});
+				
+		this._drawThroughputVerticalBarChart(inputData.categories, this.groupedSeries);			
+	},
+	
+	// Configures and displays a horizontal bar chart
+	_drawThroughputVerticalBarChart: function(categories, data) {	
+		var conf = {
+			id: 'verticalBars',
+			targetContainer: '#defaultChartContainer',
+			series: data,	
+			chartType: 'column',
+			chartTitle: 'Throughput by Months',
+			xAxisCategories: categories,
+			xAxisTitle: 'Months',
+			yAxisTitle: 'Count'												
+		};															
+		
+		this._drawThroughputBarChart(conf);
+	},								
+	
+	//Draws and displays the bar chart 
+	_drawThroughputBarChart: function (conf) {					
+		this.throughputChart = Ext.create('Rally.ui.chart.Chart',{
+			id: conf.id,
+			height: 400,
+			chartData: {series: conf.series},							
+			chartConfig: {														
+				plotOptions: {
+					column: {
+						stacking: 'normal', 
+						cursor: 'pointer',
+						point: {
+							events: {
+								click: function() {															
+									//Need to implement
+								}
+							}
+						}										
+					}									
+				},
+				chart: {plotBackgroundColor: null, plotBorderWidth: null, plotShadow: false, type: conf.chartType},								
+				legend: {align: 'right', verticalAlign: 'top', x: 0, y: 100,layout: 'vertical'},
+				title: {text: conf.chartTitle},
+				tooltip: {
+					formatter: function() {
+						return '<b>'+ this.series.name + ' | ' + this.x + '</b><br/>'+
+							'<b>'+ this.y + '</b> User Stories<br/><i>(Click to view User Stories)</i>';
+					}
+				},				
+				yAxis: [{title: {text: conf.yAxisTitle}}],
+				xAxis: [{
+					title: {text: conf.xAxisTitle},
+					categories: conf.xAxisCategories
+				}]
+			}
+		});
+	}			
+	
 });
